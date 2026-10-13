@@ -542,7 +542,7 @@ function vCal(){
   <div class="row wrap"><button class="pri" data-a="newbusy" data-d="${today()}">+ I'm busy</button><button data-a="newev" data-d="${today()}">+ Trip / event</button><button data-a="newstd" data-d="${today()}">+ Save the date</button><button data-a="newnote" data-d="${today()}">+ Note</button></div>
   <div class="row sp"><h2>🛋️ Chill requests</h2><button class="sm pri" data-a="newchill">+ Request</button></div>${openChill().map(c=>chillCard(c)).join('')||'<div class="card empty">No chill requests right now.</div>'}
   <h2>Save the dates</h2>${stds||'<div class="card empty">Nothing yet. Float a date and see who is in.</div>'}
-  <div class="banner">.ics export gives each person a file to add to their own calendar. Live two-way sync needs the backend step.</div>`;
+  <div class="banner">Export .ics gives you a file to add these dates to your own calendar. It's a snapshot, so export again after plans change.</div>`;
 }
 
 const ago=ts=>{const m=Math.round((Date.now()-ts)/6e4);if(m<1)return 'just now';if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<24)return h+'h ago';return Math.round(h/24)+'d ago'};
