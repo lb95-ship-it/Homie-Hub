@@ -17,7 +17,10 @@ Built for a group of about 3 to 8 people who trust each other. It is casual on p
 **Calendar**
 - Month view with dots for hangouts, trips and events, save-the-dates, and days people are busy.
 - Small dashes mark work shifts (blue) and notes (amber). A dashed pink outline marks a chill request.
-- Add "I'm busy" blackouts, trips and events (which can reset the biweekly schedule), save-the-dates with RSVPs, and notes.
+- Add "I'm busy" days, trips and events (which can reset the biweekly schedule), save-the-dates with RSVPs, and notes.
+- Save-the-dates can float several date options at once. Each option gets its own RSVPs.
+- Group blackouts mark holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.
+- Request a ride to anything on a day (a trip, a save-the-date, a chill request, or somewhere else) from that day in the Calendar.
 - Request to chill on any day, and opt in with one tap.
 - Export an `.ics` file to add dates to your own calendar.
 
@@ -32,6 +35,7 @@ Built for a group of about 3 to 8 people who trust each other. It is casual on p
 
 **Rides**
 - Request a ride to the hangout, home from it, or both. Anyone else can claim it.
+- Rides for other events show up under **Other rides** on Home so drivers see them.
 
 ## How it works
 

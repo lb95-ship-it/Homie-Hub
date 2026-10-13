@@ -153,6 +153,7 @@ nav button.on{background:var(--hero);color:#fff;box-shadow:0 0 16px rgba(106,76,
 .cell.out{opacity:.35}
 .cell.today{box-shadow:inset 0 0 0 2.5px var(--hero),0 0 12px rgba(106,76,255,.3)}
 .cell.hang{background:var(--pink)}.cell.ev{background:var(--mint)}
+.cell.blk{background:repeating-linear-gradient(135deg,var(--card) 0 6px,rgba(154,143,132,.22) 6px 12px)}
 .dashes{position:absolute;top:0;left:50%;transform:translateX(-50%);display:flex;gap:3px}
 .dash{width:14px;height:3px;border-radius:0 0 3px 3px}
 .dots{display:flex;gap:3px;flex-wrap:wrap}.dot{width:7px;height:7px;border-radius:50%}
@@ -405,7 +406,9 @@ const actInfo=o=>{if(o&&o.custom)return ['custom','✨',o.custom];const l=actLis
 /* ---------- schedule engine ---------- */
 function upcoming(n){
   const st=S.settings,interval=st.weeks*7,wd=st.weekday;
-  const resets=S.events.filter(e=>e.resets).map(e=>({id:e.id,t:e.title,s:parse(e.start),e:parse(e.end||e.start),r:e.restart?parse(e.restart):null}));
+  const span=e=>({id:e.id,t:e.title,s:parse(e.start),e:parse(e.end||e.start),r:e.restart?parse(e.restart):null});
+  const resets=S.events.filter(e=>e.resets&&!e.block).map(span);
+  const blocks=S.events.filter(e=>e.block).map(span);
   const lastDone=S.done.length?parse(S.done.map(d=>d.date).sort().pop()):null;
   let prev=lastDone;
   let cur=lastDone?nextOnOrAfter(addDays(lastDone,interval-3),wd):nextOnOrAfter(parse(st.start),wd);
@@ -418,6 +421,14 @@ function upcoming(n){
       prev=last.e;reason=last.t;resetId=last.id;
       // A chosen restart date wins, as long as it falls after the reset itself
       cur=last.r&&last.r>last.e?last.r:nextOnOrAfter(addDays(prev,interval-3),wd);
+      continue;
+    }
+    // Group blackouts only matter when a hangout lands inside one. It moves to the first regular day after.
+    const blk=blocks.filter(b=>b.s<=cur&&b.e>=cur);
+    if(blk.length){
+      const last=blk.reduce((a,b)=>b.e>a.e?b:a);
+      reason=last.t;resetId=last.id;
+      cur=last.r&&last.r>last.e?last.r:nextOnOrAfter(addDays(last.e,1),wd);
       continue;
     }
     out.push({date:iso(cur),reason,resetId});
@@ -504,7 +515,9 @@ function itemsOn(date){
   const done=S.done.find(d=>d.date===date);
   return {
     hang:up||null,done:done||null,
-    ev:S.events.filter(e=>!e.hidden&&e.start<=date&&(e.end||e.start)>=date),
+    ev:S.events.filter(e=>!e.hidden&&!e.block&&e.start<=date&&(e.end||e.start)>=date),
+    blk:S.events.filter(e=>e.block&&e.start<=date&&(e.end||e.start)>=date),
+    rides:S.rides.filter(r=>r.date===date&&mem(r.by)),
     skip:S.events.filter(e=>e.hidden&&e.resets&&e.start===date),
     bl:S.blackouts.filter(b=>b.date===date&&mem(b.who)),
     std:S.std.filter(s=>s.date===date),
@@ -528,7 +541,7 @@ function vCal(){
     if(ev)dots.push('var(--acc2)');
     if(it.std.length)dots.push('var(--acc3)');
     if(it.bl.length)dots.push('#9a8f84');
-    cells+=`<div class="cell ${dt.getMonth()!==mo?'out':''} ${k===today()?'today':''} ${hang?'hang':ev?'ev':''} ${it.chill.length?'chill':''} ${k===ui.hl?'hl':''}" data-a="day" data-d="${k}">${(it.work.length||it.notes.length)?`<span class="dashes">${it.work.length?'<span class="dash" style="background:#5b7fa6"></span>':''}${it.notes.length?'<span class="dash" style="background:#d99a1f"></span>':''}</span>`:''}<b>${dt.getDate()}</b><div class="dots">${dots.map(c=>`<span class="dot" style="background:${c}"></span>`).join('')}</div></div>`;
+    cells+=`<div class="cell ${dt.getMonth()!==mo?'out':''} ${k===today()?'today':''} ${hang?'hang':ev?'ev':it.blk.length?'blk':''} ${it.chill.length?'chill':''} ${k===ui.hl?'hl':''}" data-a="day" data-d="${k}">${(it.work.length||it.notes.length)?`<span class="dashes">${it.work.length?'<span class="dash" style="background:#5b7fa6"></span>':''}${it.notes.length?'<span class="dash" style="background:#d99a1f"></span>':''}</span>`:''}<b>${dt.getDate()}</b><div class="dots">${dots.map(c=>`<span class="dot" style="background:${c}"></span>`).join('')}</div></div>`;
   }
   const stds=[...S.std].sort((a,b)=>a.date.localeCompare(b.date)).map(s=>{
     const r=s.rsvp||{};
@@ -537,14 +550,16 @@ function vCal(){
     return `<div class="card"><div class="row sp"><div><h3>${esc(s.title)}</h3><div class="sub">${fmt(s.date,{weekday:'short',month:'short',day:'numeric',year:'numeric'})}${s.note?' · '+esc(s.note):''}</div></div><button class="sm ghost danger" data-a="delstd" data-id="${s.id}">✕</button></div>
       <div class="row rs" style="margin-top:10px">${[['yes','✅ In'],['maybe','🤔 Maybe'],['no','❌ Out']].map(x=>`<button class="sm ${mine===x[0]?'on':''}" data-a="rsvp" data-id="${s.id}" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
       <div class="sub" style="margin-top:8px">In: ${cnt('yes').join(', ')||'none yet'} · Maybe: ${cnt('maybe').join(', ')||'none'} · Out: ${cnt('no').join(', ')||'none'}</div></div>`}).join('');
+  const blks=S.events.filter(e=>e.block&&(e.end||e.start)>=today()).sort((a,b)=>a.start.localeCompare(b.start)).map(blkCard).join('');
   return `<div class="row sp"><h1>Calendar</h1><button class="sm" data-a="ics">⬇ Export .ics</button></div>
   <div class="row sp" style="margin:8px 0"><button class="sm" data-a="mprev">‹</button><b>${m.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><button class="sm" data-a="mnext">›</button></div>
   <div class="cal">${['S','M','T','W','T','F','S'].map(d=>`<div class="h">${d}</div>`).join('')}${cells}</div>
   <div class="row" style="margin-top:8px"><button class="sm ${ui.showWork?'rxb on':''}" data-a="togglework">💼 Work schedules: ${ui.showWork?'on':'off'}</button></div>
-  <div class="legend"><span><i style="background:var(--acc)"></i>Hangout</span><span><i style="background:var(--acc2)"></i>Trip / event</span><span><i style="background:var(--acc3)"></i>Save the date</span><span><i style="background:#9a8f84"></i>Someone's busy</span><span><i style="width:14px;height:3px;border-radius:2px;background:#d99a1f;vertical-align:middle"></i>Note</span><span><i style="width:14px;height:3px;border-radius:2px;background:#5b7fa6;vertical-align:middle"></i>Work</span><span><i style="width:12px;height:12px;border-radius:4px;border:2px dashed #c2417a;vertical-align:middle"></i>Chill request</span></div>
-  <div class="row wrap"><button class="pri" data-a="newbusy" data-d="${today()}">+ I'm busy</button><button data-a="newev" data-d="${today()}">+ Trip / event</button><button data-a="newstd" data-d="${today()}">+ Save the date</button><button data-a="newnote" data-d="${today()}">+ Note</button></div>
+  <div class="legend"><span><i style="background:var(--acc)"></i>Hangout</span><span><i style="background:var(--acc2)"></i>Trip / event</span><span><i style="background:var(--acc3)"></i>Save the date</span><span><i style="background:#9a8f84"></i>Someone's busy</span><span><i style="width:14px;height:3px;border-radius:2px;background:#d99a1f;vertical-align:middle"></i>Note</span><span><i style="width:14px;height:3px;border-radius:2px;background:#5b7fa6;vertical-align:middle"></i>Work</span><span><i style="width:12px;height:12px;border-radius:4px;border:2px dashed #c2417a;vertical-align:middle"></i>Chill request</span><span><i style="width:12px;height:12px;border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(154,143,132,.6) 3px 6px);vertical-align:middle"></i>Group blackout</span></div>
+  <div class="row wrap"><button class="pri" data-a="newbusy" data-d="${today()}">+ I'm busy</button><button data-a="newev" data-d="${today()}">+ Trip / event</button><button data-a="newstd" data-d="${today()}">+ Save the date</button><button data-a="newnote" data-d="${today()}">+ Note</button><button data-a="newblk" data-d="${today()}">+ Group blackout</button></div>
   <div class="row sp"><h2>🛋️ Chill requests</h2><button class="sm pri" data-a="newchill">+ Request</button></div>${openChill().map(c=>chillCard(c)).join('')||'<div class="card empty">No chill requests right now.</div>'}
   <h2>Save the dates</h2>${stds||'<div class="card empty">Nothing yet. Float a date and see who is in.</div>'}
+  <div class="row sp"><h2>🚫 Group blackouts</h2><button class="sm" data-a="newblk" data-d="${today()}">+ Add</button></div>${blks||'<div class="card empty">No blackouts. Add holidays or other days the group won\'t be together, and hangouts will move around them.</div>'}
   <div class="banner">Export .ics gives you a file to add these dates to your own calendar. It's a snapshot, so export again after plans change.</div>`;
 }
 
@@ -593,20 +608,36 @@ function postSheet(){
   setTimeout(()=>{const i=$('#pText');i&&i.focus()},50);
 }
 const RIDE_DIRS={to:'a ride there',from:'a ride home',both:'rides there and back'};
-const openRides=date=>S.rides.filter(r=>r.date===date&&!r.driver&&mem(r.by)).length;
+const openRides=date=>S.rides.filter(r=>r.date===date&&!r.for&&!r.driver&&mem(r.by)).length;
 function rideRow(r){
   const drv=r.driver&&mem(r.driver);
-  return `<div><div class="row sp"><div class="row">${av(r.by)}<div><b>${esc(nm(r.by))}</b> needs ${RIDE_DIRS[r.dir]||RIDE_DIRS.both}${r.note?`<div class="sub">${esc(r.note)}</div>`:''}</div></div>${r.by===S.me?`<button class="sm ghost danger" data-a="delride" data-id="${r.id}">✕</button>`:''}</div>
+  return `<div><div class="row sp"><div class="row">${av(r.by)}<div><b>${esc(nm(r.by))}</b> needs ${RIDE_DIRS[r.dir]||RIDE_DIRS.both}${r.for?` for <b>${esc(r.for)}</b>`:''}${r.note?`<div class="sub">${esc(r.note)}</div>`:''}</div></div>${r.by===S.me?`<button class="sm ghost danger" data-a="delride" data-id="${r.id}">✕</button>`:''}</div>
   <div class="row" style="margin-top:8px">${drv?`<span class="tag" style="background:var(--acc2);color:#fff">🚗 ${esc(drv.name)} is driving</span>${r.driver===S.me?`<button class="sm ghost" data-a="unride" data-id="${r.id}">Can't anymore</button>`:''}`:(r.by===S.me?'<span class="tag">Waiting for a driver</span>':`<button class="sm pri" data-a="drive" data-id="${r.id}">I'll drive</button>`)}</div></div>`;
 }
 function ridesCard(date){
-  const list=S.rides.filter(r=>r.date===date&&mem(r.by));
-  return `<div class="row sp"><h2>🚗 Rides · ${fmt(date)}</h2><button class="sm pri" data-a="newride" data-d="${date}">+ Request</button></div>
-  ${list.length?`<div class="card list">${list.map(rideRow).join('')}</div>`:'<div class="card empty">No ride requests yet. Need one? Ask early so someone can plan.</div>'}`;
+  const list=S.rides.filter(r=>r.date===date&&!r.for&&mem(r.by));
+  // Rides for trips, events, save-the-dates and chill requests coming up
+  const other=S.rides.filter(r=>r.for&&r.date>=today()&&mem(r.by)).sort((a,b)=>a.date.localeCompare(b.date));
+  return `<div class="row sp"><h2>🚗 Rides · ${fmt(date)}</h2><button class="sm pri" data-a="newride" data-d="${date}" data-f="">+ Request</button></div>
+  ${list.length?`<div class="card list">${list.map(rideRow).join('')}</div>`:'<div class="card empty">No ride requests yet. Need one? Ask early so someone can plan.</div>'}
+  ${other.length?`<h2>🚗 Other rides</h2><div class="card list">${other.map(r=>`<div><div class="sub"><span class="link" data-a="gocal" data-d="${r.date}">${fmt(r.date)} ›</span></div>${rideRow(r)}</div>`).join('')}</div>`:''}
+  <div class="sub" style="margin:6px 4px 0">Need a ride to something else? Tap its day in the Calendar.</div>`;
 }
-function rideSheet(date){
+// What's on a day that someone might need a ride to. '' means the regular hangout.
+function rideTargets(date){
+  const it=itemsOn(date),t=[];
+  if(it.hang)t.push(['','🎉 The hangout']);
+  it.ev.forEach(e=>t.push([e.title,'🧳 '+e.title]));
+  it.std.forEach(s=>t.push([s.title,'📌 '+s.title]));
+  it.chill.forEach(c=>{const a=chillAct(c);t.push([nm(c.by)+"'s chill ("+a[2]+')','🛋️ '+nm(c.by)+"'s chill: "+a[2]])});
+  t.push(['Something else','✏️ Something else (say where below)']);
+  return t;
+}
+function rideSheet(date,f){
+  const t=rideTargets(date);
   sheet(`<h2 style="margin-top:0">Request a ride</h2><div class="sub">For ${fmt(date,{weekday:'long',month:'short',day:'numeric'})} · asking as ${esc(nm(S.me))}</div>
-  <label>Which way</label><select id="rDir"><option value="both">Both ways</option><option value="to">To the hangout</option><option value="from">Home after</option></select>
+  <label>For</label><select id="rFor">${t.map(x=>`<option value="${esc(x[0])}" ${x[0]===f?'selected':''}>${esc(x[1])}</option>`).join('')}</select>
+  <label>Which way</label><select id="rDir"><option value="both">Both ways</option><option value="to">Getting there</option><option value="from">Home after</option></select>
   <label>Pickup spot or note (optional)</label><input id="rNote" maxlength="80" placeholder="Pick me up in Round Rock...">
   <div class="row" style="margin-top:18px"><button class="pri" data-a="saveride" data-d="${date}">Send request</button><button data-a="close">Cancel</button></div>`);
 }
@@ -729,17 +760,19 @@ function daySheet(date){
   it.skip.forEach(e=>{any=true;h+=`<div class="card row sp"><div>⏭️ <b>Skipped hangout</b><div class="sub">The schedule restarts after this day.</div></div><button class="sm" data-a="unskip" data-id="${e.id}">Undo skip</button></div>`});
   if(it.done){any=true;h+=`<div class="card">✅ <b>Hangout logged</b><div class="sub">${it.done.host==='none'?'Group outing, no host':esc(nm(it.done.host))+' hosted'}</div></div>`}
   it.ev.forEach(e=>{any=true;h+=`<div class="card row sp"><div>🧳 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''}${e.resets?' · resets hangouts':''}</div></div><button class="sm ghost danger" data-a="delev" data-id="${e.id}">✕</button></div>`});
+  it.blk.forEach(e=>{any=true;h+=blkCard(e)});
   it.std.forEach(s=>{any=true;h+=`<div class="card">📌 <b>${esc(s.title)}</b></div>`});
   it.chill.forEach(c=>{any=true;h+=chillCard(c,true)});
+  if(it.rides.length){any=true;h+=`<div class="card list"><b>🚗 Rides</b>${it.rides.map(rideRow).join('')}</div>`}
   if(it.notes.length){any=true;h+=`<div class="card"><b>📝 Notes</b>${it.notes.map(n=>`<div class="row sp" style="margin-top:10px;align-items:flex-start"><div class="row" style="align-items:flex-start">${av(n.by)}<div><b>${esc(nm(n.by))}</b><div class="ptxt" style="margin-top:2px;font-size:15px">${esc(n.text)}</div></div></div>${n.by===S.me?`<button class="sm ghost danger" data-a="delnote" data-id="${n.id}">✕</button>`:''}</div>`).join('')}</div>`}
   if(it.bl.length){any=true;h+=`<div class="card"><b>Busy</b>${it.bl.map(b=>`<div class="row sp" style="margin-top:8px"><div class="row">${av(b.who)}<span>${esc(nm(b.who))}${b.note?' · '+esc(b.note):''}</span></div><button class="sm ghost danger" data-a="delbusy" data-id="${b.id}">✕</button></div>`).join('')}</div>`}
   if(it.work.length){any=true;h+=`<div class="card"><b>💼 Work</b>${it.work.map(w=>`<div class="row" style="margin-top:10px">${av(w.by)}<div><b>${esc(nm(w.by))}</b><div class="sub">${fmtTime(w.start)} to ${fmtTime(w.end)}</div></div></div>`).join('')}</div>`}
   if(!any)h+=`<div class="empty">Nothing on this day.</div>`;
-  h+=`<div class="row wrap"><button class="pri" data-a="newbusy" data-d="${date}">+ Busy</button><button data-a="newnote" data-d="${date}">+ Note</button><button data-a="newchill" data-d="${date}">+ Chill</button><button data-a="newev" data-d="${date}">+ Trip / event</button><button data-a="newstd" data-d="${date}">+ Save the date</button></div>`;
+  h+=`<div class="row wrap"><button class="pri" data-a="newbusy" data-d="${date}">+ Busy</button><button data-a="newnote" data-d="${date}">+ Note</button><button data-a="newchill" data-d="${date}">+ Chill</button><button data-a="newev" data-d="${date}">+ Trip / event</button><button data-a="newstd" data-d="${date}">+ Save the date</button><button data-a="newride" data-d="${date}">+ Ride</button><button data-a="newblk" data-d="${date}">+ Group blackout</button></div>`;
   sheet(h);
 }
 function busySheet(date){
-  sheet(`<h2 style="margin-top:0">Blackout dates</h2>
+  sheet(`<h2 style="margin-top:0">I'm busy</h2>
   <label>Who</label><select id="bWho">${S.members.map(m=>`<option value="${m.id}" ${m.id===S.me?'selected':''}>${esc(m.name)}</option>`).join('')}</select>
   <label>From</label><input type="date" id="bFrom" value="${date}">
   <label>Through (optional)</label><input type="date" id="bTo">
@@ -768,12 +801,23 @@ function moveHang(from,to){
   if(!from||!to||from===to)return;
   if(S.over[from]&&!S.over[to])S.over[to]=S.over[from];
   delete S.over[from];
-  S.rides.forEach(r=>{if(r.date===from)r.date=to});
+  S.rides.forEach(r=>{if(r.date===from&&!r.for)r.date=to});
 }
+const blkCard=e=>`<div class="card row sp"><div>🚫 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''} · group blackout, no hangout</div></div><button class="sm ghost danger" data-a="delblk" data-id="${e.id}">✕</button></div>`;
+function blkSheet(date){
+  sheet(`<h2 style="margin-top:0">Group blackout</h2><div class="sub">For holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.</div>
+  <label>What is it</label><input id="kTitle" maxlength="60" placeholder="Thanksgiving, Christmas, New Year's...">
+  <label>From</label><input type="date" id="kFrom" value="${date}">
+  <label>Through (optional)</label><input type="date" id="kTo">
+  <div class="row" style="margin-top:18px"><button class="pri" data-a="saveblk">Save</button><button data-a="close">Cancel</button></div>`);
+}
+const stdDateRow=v=>`<div class="row sdrow" style="margin-top:6px"><input type="date" class="sDate" value="${v||''}" style="flex:1"><button class="sm ghost danger" data-a="rmsdate">✕</button></div>`;
 function stdSheet(date){
   sheet(`<h2 style="margin-top:0">Save the date</h2>
   <label>What is it</label><input id="sTitle" placeholder="Friendsgiving, birthday dinner...">
-  <label>Date</label><input type="date" id="sDate" value="${date}">
+  <label>Date(s)</label><div class="sub">Not sure which day? Add a few options and see which one gets the most RSVPs.</div>
+  <div id="sDates">${stdDateRow(date)}</div>
+  <button class="sm" style="margin-top:8px" data-a="addsdate">+ Another date</button>
   <label>Note (optional)</label><input id="sNote">
   <div class="row" style="margin-top:18px"><button class="pri" data-a="savestd">Save</button><button data-a="close">Cancel</button></div>`);
 }
@@ -802,10 +846,10 @@ function exportIcs(){
       'DTSTART:'+z(h.date)+'T'+hh+mm+'00','DTEND:'+z(h.date)+'T'+endH+mm+'00',
       'SUMMARY:'+esc2('Homie Hub: '+a[2]),'DESCRIPTION:'+esc2(h.host==='none'?'No host, group outing':'Host: '+nm(h.host)),'END:VEVENT');
   });
-  S.events.forEach(e=>{
+  S.events.filter(e=>!e.hidden).forEach(e=>{
     L.push('BEGIN:VEVENT','UID:ev-'+e.id+'@crewnights','DTSTAMP:'+z(today())+'T000000Z',
       'DTSTART;VALUE=DATE:'+z(e.start),'DTEND;VALUE=DATE:'+z(iso(addDays(parse(e.end||e.start),1))),
-      'SUMMARY:'+esc2(e.title),'END:VEVENT');
+      'SUMMARY:'+esc2(e.block?'No hangout: '+e.title:e.title),'END:VEVENT');
   });
   S.chill.filter(c=>c.date).forEach(c=>{
     const a=chillAct(c),ds=z(c.date),base=['BEGIN:VEVENT','UID:chill-'+c.id+'@crewnights','DTSTAMP:'+z(today())+'T000000Z'];
@@ -872,9 +916,20 @@ function act(a,d){
       S.events.push({id:uid(),title:t,start:s,end:e,resets:$('#eReset').checked});closeSheet();break}
     case 'delev':S.events=S.events.filter(e=>e.id!==d.id);closeSheet();break;
     case 'newstd':return stdSheet(d.d);
+    case 'addsdate':{const l=[...document.querySelectorAll('.sDate')].pop();
+      $('#sDates').insertAdjacentHTML('beforeend',stdDateRow(l&&l.value?iso(addDays(parse(l.value),1)):''));return}
     case 'savestd':{
-      const t=$('#sTitle').value.trim(),dt=$('#sDate').value;if(!t||!dt)return;
-      S.std.push({id:uid(),title:t,date:dt,note:$('#sNote').value.trim(),rsvp:{}});closeSheet();break}
+      const t=$('#sTitle').value.trim(),note=$('#sNote').value.trim();
+      const dates=[...new Set([...document.querySelectorAll('.sDate')].map(i=>i.value).filter(Boolean))].sort();
+      if(!t||!dates.length)return;
+      dates.forEach(dt=>S.std.push({id:uid(),title:t,date:dt,note,rsvp:{}}));closeSheet();break}
+    case 'newblk':return blkSheet(d.d);
+    case 'saveblk':{
+      const t=$('#kTitle').value.trim(),s=$('#kFrom').value;if(!t||!s)return;
+      let e=$('#kTo').value||s;if(e<s)e=s;
+      S.events.push({id:uid(),title:t,start:s,end:e,block:true});ui.sel=0;closeSheet();break}
+    case 'delblk':{const e=S.events.find(x=>x.id===d.id);if(!e||!confirm('Remove the "'+e.title+'" blackout for everyone?'))return;
+      S.events=S.events.filter(x=>x.id!==d.id);ui.sel=0;closeSheet();break}
     case 'delstd':S.std=S.std.filter(s=>s.id!==d.id);break;
     case 'rsvp':{const s=S.std.find(x=>x.id===d.id);s.rsvp=s.rsvp||{};s.rsvp[S.me]=d.v;break}
     case 'newpost':return postSheet();
@@ -889,11 +944,20 @@ function act(a,d){
     case 'savechill':{const dt=$('#cDate').value,tm=$('#cTime').value;S.chill.push({id:uid(),by:S.me,what:$('#cWhat').value,date:dt,time:dt?tm:'',note:$('#cNote').value.trim(),rsvp:{[S.me]:'yes'}});closeSheet();break}
     case 'delchill':S.chill=S.chill.filter(c=>c.id!==d.id);closeSheet();break;
     case 'crsvp':{const c=S.chill.find(x=>x.id===d.id);c.rsvp=c.rsvp||{};c.rsvp[S.me]=d.v;if($('#sheetBg').style.display==='flex'&&c.date)daySheet(c.date);break}
-    case 'newride':return rideSheet(d.d);
-    case 'saveride':S.rides.push({id:uid(),date:d.d,by:S.me,dir:$('#rDir').value,note:$('#rNote').value.trim(),driver:null});closeSheet();break;
-    case 'delride':S.rides=S.rides.filter(r=>r.id!==d.id);break;
-    case 'drive':{const r=S.rides.find(x=>x.id===d.id);if(r&&!r.driver&&r.by!==S.me)r.driver=S.me;break}
-    case 'unride':{const r=S.rides.find(x=>x.id===d.id);if(r&&r.driver===S.me)r.driver=null;break}
+    case 'newride':return rideSheet(d.d,d.f);
+    case 'saveride':{const f=$('#rFor').value,note=$('#rNote').value.trim();
+      const other=f==='Something else';
+      if(other&&!note){alert('Say where you need a ride to in the note.');return}
+      const r={id:uid(),date:d.d,by:S.me,dir:$('#rDir').value,note:other?'':note,driver:null};if(f)r.for=other?note:f;
+      S.rides.push(r);closeSheet();break}
+    case 'delride':case 'drive':case 'unride':{
+      const r=S.rides.find(x=>x.id===d.id);if(!r)break;
+      if(a==='delride')S.rides=S.rides.filter(x=>x.id!==d.id);
+      else if(a==='drive'){if(!r.driver&&r.by!==S.me)r.driver=S.me}
+      else if(r.driver===S.me)r.driver=null;
+      // Keep the day sheet current when the ride was handled from the Calendar
+      if($('#sheetBg').style.display==='flex'){render();return daySheet(r.date)}
+      break}
     case 'bsub':ui.bsub=d.v;break;
     case 'toideas':ui.tab='board';ui.bsub='ideas';break;
     case 'newidea':return ideaSheet('');
@@ -959,6 +1023,7 @@ function chg(k,d,v){
 }
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t)return;
   if(t.dataset.a==='rmfact'){t.closest('.frow').remove();return}
+  if(t.dataset.a==='rmsdate'){if(document.querySelectorAll('.sdrow').length>1)t.closest('.sdrow').remove();return}
   if(t.dataset.a==='rmwork'){t.closest('.wrow').remove();return}
   if(t.dataset.a==='addwork'){$('#workRows').insertAdjacentHTML('beforeend',workRow({days:[1,2,3,4,5],start:'09:00',end:'17:00'}));return}
   if(t.dataset.a==='addfact'){$('#factRows').insertAdjacentHTML('beforeend',factRow('',''));return}
