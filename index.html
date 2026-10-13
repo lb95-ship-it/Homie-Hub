@@ -405,22 +405,23 @@ const actInfo=o=>{if(o&&o.custom)return ['custom','✨',o.custom];const l=actLis
 /* ---------- schedule engine ---------- */
 function upcoming(n){
   const st=S.settings,interval=st.weeks*7,wd=st.weekday;
-  const resets=S.events.filter(e=>e.resets).map(e=>({t:e.title,s:parse(e.start),e:parse(e.end||e.start)}));
+  const resets=S.events.filter(e=>e.resets).map(e=>({id:e.id,t:e.title,s:parse(e.start),e:parse(e.end||e.start),r:e.restart?parse(e.restart):null}));
   const lastDone=S.done.length?parse(S.done.map(d=>d.date).sort().pop()):null;
   let prev=lastDone;
   let cur=lastDone?nextOnOrAfter(addDays(lastDone,interval-3),wd):nextOnOrAfter(parse(st.start),wd);
-  const out=[];let reason=null,guard=0;
+  const out=[];let reason=null,resetId=null,guard=0;
   while(out.length<n&&guard++<300){
     const lo=prev||addDays(cur,-interval);
     const hit=resets.filter(r=>r.e>lo&&r.s<=cur);
     if(hit.length){
       const last=hit.reduce((a,b)=>b.e>a.e?b:a);
-      prev=last.e;reason=last.t;
-      cur=nextOnOrAfter(addDays(prev,interval-3),wd);
+      prev=last.e;reason=last.t;resetId=last.id;
+      // A chosen restart date wins, as long as it falls after the reset itself
+      cur=last.r&&last.r>last.e?last.r:nextOnOrAfter(addDays(prev,interval-3),wd);
       continue;
     }
-    out.push({date:iso(cur),reason});
-    reason=null;prev=cur;cur=nextOnOrAfter(addDays(cur,interval-3),wd);
+    out.push({date:iso(cur),reason,resetId});
+    reason=null;resetId=null;prev=cur;cur=nextOnOrAfter(addDays(cur,interval-3),wd);
   }
   return out;
 }
@@ -474,7 +475,8 @@ function vHome(){
     <div class="sub">${ui.sel===0?'Next hangout':'Hangout preview'} · ${when}</div>
     <div class="big">${fmt(n.date,{weekday:'long',month:'short',day:'numeric'})}</div>
     <div class="sub" style="font-size:15px;color:#fff;opacity:.9">${fmtTime(S.settings.time)}</div>
-    ${n.reason?`<div class="note">Pushed back because of <b>${esc(n.reason)}</b>. Schedule reset from there.</div>`:''}
+    ${n.reason?`<div class="note">Pushed back because of <b>${esc(n.reason)}</b>. Schedule reset from there.
+      <div class="row wrap" style="margin-top:8px"><button class="sm" data-a="restart" data-id="${n.resetId}">📅 Change date</button>${(S.events.find(e=>e.id===n.resetId)||{}).hidden?`<button class="sm" data-a="unskip" data-id="${n.resetId}">↩ Undo skip</button>`:''}</div></div>`:''}
     <div class="row hpanel">${hostAv(n.host,1)}<div style="flex:1"><div class="sub">${n.host==='none'?'Host':'Hosting'}</div><b style="font-size:16px">${n.host==='none'?'No host':esc(nm(n.host))}</b></div>
       <select style="width:auto;background:rgba(255,255,255,.22);color:#fff;border:none" data-c="host" data-d="${n.date}">${S.members.map(m=>`<option style="color:#000" value="${m.id}" ${m.id===n.host?'selected':''}>${esc(m.name)}</option>`).join('')}<option style="color:#000" value="none" ${n.host==='none'?'selected':''}>No host</option></select></div>
     <div class="hlbl">${planLbl}: ${a[1]} ${esc(a[2])}</div>
@@ -503,6 +505,7 @@ function itemsOn(date){
   return {
     hang:up||null,done:done||null,
     ev:S.events.filter(e=>!e.hidden&&e.start<=date&&(e.end||e.start)>=date),
+    skip:S.events.filter(e=>e.hidden&&e.resets&&e.start===date),
     bl:S.blackouts.filter(b=>b.date===date&&mem(b.who)),
     std:S.std.filter(s=>s.date===date),
     work:workOn(date),
@@ -722,7 +725,8 @@ function daySheet(date){
   const it=itemsOn(date);
   let h=`<h2 style="margin-top:0">${fmt(date,{weekday:'long',month:'long',day:'numeric'})}</h2>`;
   let any=false;
-  if(it.hang){any=true;const ai=actInfo(it.hang.o);h+=`<div class="card">🎉 <b>Hangout</b><div class="sub">${it.hang.host==='none'?'No host':esc(nm(it.hang.host))+' hosts'} · ${ai[1]} ${esc(ai[2])} · ${fmtTime(S.settings.time)}</div></div>`}
+  if(it.hang){any=true;const ai=actInfo(it.hang.o);h+=`<div class="card">🎉 <b>Hangout</b><div class="sub">${it.hang.host==='none'?'No host':esc(nm(it.hang.host))+' hosts'} · ${ai[1]} ${esc(ai[2])} · ${fmtTime(S.settings.time)}</div>${it.hang.resetId?`<div class="sub" style="margin-top:6px">Schedule reset after ${esc(it.hang.reason)}.</div><div class="row" style="margin-top:8px"><button class="sm" data-a="restart" data-id="${it.hang.resetId}">📅 Change date</button></div>`:''}</div>`}
+  it.skip.forEach(e=>{any=true;h+=`<div class="card row sp"><div>⏭️ <b>Skipped hangout</b><div class="sub">The schedule restarts after this day.</div></div><button class="sm" data-a="unskip" data-id="${e.id}">Undo skip</button></div>`});
   if(it.done){any=true;h+=`<div class="card">✅ <b>Hangout logged</b><div class="sub">${it.done.host==='none'?'Group outing, no host':esc(nm(it.done.host))+' hosted'}</div></div>`}
   it.ev.forEach(e=>{any=true;h+=`<div class="card row sp"><div>🧳 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''}${e.resets?' · resets hangouts':''}</div></div><button class="sm ghost danger" data-a="delev" data-id="${e.id}">✕</button></div>`});
   it.std.forEach(s=>{any=true;h+=`<div class="card">📌 <b>${esc(s.title)}</b></div>`});
@@ -749,6 +753,22 @@ function evSheet(date){
   <label>Ends (optional)</label><input type="date" id="eEnd">
   <label class="ck"><input type="checkbox" id="eReset" checked> Counts as our hangout (resets the schedule)</label>
   <div class="row" style="margin-top:18px"><button class="pri" data-a="saveev">Save</button><button data-a="close">Cancel</button></div>`);
+}
+function restartSheet(id){
+  const e=S.events.find(x=>x.id===id);if(!e)return;
+  const h=upcoming(14).find(x=>x.resetId===id);
+  const min=iso(addDays(parse(e.end||e.start),1));
+  sheet(`<h2 style="margin-top:0">Restart the schedule</h2>
+  <div class="sub">After ${e.hidden?'the skipped night on '+fmt(e.start):'<b>'+esc(e.title)+'</b>'}, the next hangout is ${h?fmt(h.date,{weekday:'long',month:'short',day:'numeric'}):'not set'}. Pick a different day and the regular rotation picks up from there.</div>
+  <label>Next hangout</label><input type="date" id="rsDate" min="${min}" value="${h?h.date:min}">
+  <div class="row wrap" style="margin-top:18px"><button class="pri" data-a="saverestart" data-id="${id}">Save</button>${e.restart?`<button data-a="clearrestart" data-id="${id}">Use the normal date</button>`:''}<button data-a="close">Cancel</button></div>`);
+}
+// Moves the plan and rides from a hangout's old date to its new one
+function moveHang(from,to){
+  if(!from||!to||from===to)return;
+  if(S.over[from]&&!S.over[to])S.over[to]=S.over[from];
+  delete S.over[from];
+  S.rides.forEach(r=>{if(r.date===from)r.date=to});
 }
 function stdSheet(date){
   sheet(`<h2 style="margin-top:0">Save the date</h2>
@@ -823,6 +843,18 @@ function act(a,d){
       delete S.over[d.d];ui.sel=0;closeSheet();break}
     case 'undone':S.done=S.done.filter(x=>x.id!==d.id);break;
     case 'skip':S.events.push({id:uid(),title:'a skipped night',start:d.d,end:d.d,resets:true,hidden:true});delete S.over[d.d];ui.sel=0;break;
+    case 'unskip':{if(!confirm('Undo this skip? The schedule goes back to how it was.'))return;
+      S.events=S.events.filter(e=>!(e.id===d.id&&e.hidden));ui.sel=0;closeSheet();break}
+    case 'restart':return restartSheet(d.id);
+    case 'saverestart':case 'clearrestart':{
+      const e=S.events.find(x=>x.id===d.id);if(!e)return closeSheet();
+      const min=iso(addDays(parse(e.end||e.start),1));
+      const v=a==='saverestart'?$('#rsDate').value:'';
+      if(a==='saverestart'&&(!v||v<min)){alert('Pick a day after '+fmt(e.end||e.start)+'.');return}
+      const old=(upcoming(14).find(x=>x.resetId===e.id)||{}).date;
+      if(v)e.restart=v;else delete e.restart;
+      moveHang(old,(upcoming(14).find(x=>x.resetId===e.id)||{}).date);
+      ui.sel=0;closeSheet();break}
     case 'mprev':ui.month=new Date(ui.month.getFullYear(),ui.month.getMonth()-1,1);break;
     case 'mnext':ui.month=new Date(ui.month.getFullYear(),ui.month.getMonth()+1,1);break;
     case 'day':return daySheet(d.d);

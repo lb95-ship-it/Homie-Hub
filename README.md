@@ -11,6 +11,7 @@ Built for a group of about 3 to 8 people who trust each other. It is casual on p
 - Fair host rotation. The next host is whoever has hosted the fewest times, with ties broken by who hosted longest ago. Anyone can swap the host, or choose **No host** for group outings like hikes.
 - Pick the plan from the activity chips, write your own, or jump to the Ideas board.
 - Add plus-ones and guests, see who can't make it, and mark the night done or skip it.
+- After a skip or a trip resets the schedule, tap **Change date** to pick the day the new cycle starts, or **Undo skip** to put things back. The same buttons are on that day in the Calendar.
 - Ride requests and open chill requests for the upcoming date.
 
 **Calendar**
