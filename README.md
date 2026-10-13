@@ -11,16 +11,15 @@ Built for a group of about 3 to 8 people who trust each other. It is casual on p
 - Fair host rotation. The next host is whoever has hosted the fewest times, with ties broken by who hosted longest ago. Anyone can swap the host, or choose **No host** for group outings like hikes.
 - Pick the plan from the activity chips, write your own, or jump to the Ideas board.
 - Add plus-ones and guests, see who can't make it, and mark the night done or skip it.
-- After a skip or a trip resets the schedule, tap **Change date** to pick the day the new cycle starts, or **Undo skip** to put things back. The same buttons are on that day in the Calendar.
+- After a skip or an event resets the schedule, tap **Change date** to pick the day the new cycle starts, or **Undo skip** to put things back. The same buttons are on that day in the Calendar.
 - Ride requests and open chill requests for the upcoming date.
 
 **Calendar**
-- Month view with dots for hangouts, trips and events, save-the-dates, and days people are busy.
-- Small dashes mark work shifts (blue) and notes (amber). A dashed pink outline marks a chill request.
-- Add "I'm busy" days, trips and events (which can reset the biweekly schedule), save-the-dates with RSVPs, and notes.
-- Save-the-dates can float several date options at once. Each option gets its own RSVPs.
-- Group blackouts mark holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.
-- Request a ride to anything on a day (a trip, a save-the-date, a chill request, or somewhere else) from that day in the Calendar.
+- Month view with dots for hangouts, events, and days people are busy.
+- Dots mark plans. A blue square marks work shifts and a gray x marks days someone is busy. A small amber dash marks notes. A dashed pink outline marks a chill request.
+- Add "I'm busy" days, events (which can reset the biweekly schedule), and notes.
+- Blackouts mark holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.
+- Request a ride to anything on a day (an event, a chill request, or somewhere else) from that day in the Calendar.
 - Request to chill on any day, and opt in with one tap.
 - Export an `.ics` file to add dates to your own calendar.
 

@@ -156,7 +156,11 @@ nav button.on{background:var(--hero);color:#fff;box-shadow:0 0 16px rgba(106,76,
 .cell.blk{background:repeating-linear-gradient(135deg,var(--card) 0 6px,rgba(154,143,132,.22) 6px 12px)}
 .dashes{position:absolute;top:0;left:50%;transform:translateX(-50%);display:flex;gap:3px}
 .dash{width:14px;height:3px;border-radius:0 0 3px 3px}
-.dots{display:flex;gap:3px;flex-wrap:wrap}.dot{width:7px;height:7px;border-radius:50%}
+.dots{display:flex;gap:3px;flex-wrap:wrap;align-items:center}.dot{width:7px;height:7px;border-radius:50%}
+.sq{display:inline-block;width:7px;height:7px;border-radius:1.5px;background:#5b7fa6;flex:none}
+.xm{position:relative;display:inline-block;width:8px;height:8px;flex:none}
+.xm::before,.xm::after{content:'';position:absolute;left:50%;top:50%;width:9px;height:2.2px;border-radius:2px;background:currentColor;transform:translate(-50%,-50%) rotate(45deg)}
+.xm::after{transform:translate(-50%,-50%) rotate(-45deg)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-weight:700;color:var(--mute);margin:12px 0}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 
@@ -520,7 +524,6 @@ function itemsOn(date){
     rides:S.rides.filter(r=>r.date===date&&mem(r.by)),
     skip:S.events.filter(e=>e.hidden&&e.resets&&e.start===date),
     bl:S.blackouts.filter(b=>b.date===date&&mem(b.who)),
-    std:S.std.filter(s=>s.date===date),
     work:workOn(date),
     notes:S.notes.filter(n=>n.date===date&&mem(n.by)),
     chill:S.chill.filter(c=>c.date===date&&mem(c.by))
@@ -539,27 +542,20 @@ function vCal(){
     const dots=[];
     if(hang)dots.push('var(--acc)');
     if(ev)dots.push('var(--acc2)');
-    if(it.std.length)dots.push('var(--acc3)');
-    if(it.bl.length)dots.push('#9a8f84');
-    cells+=`<div class="cell ${dt.getMonth()!==mo?'out':''} ${k===today()?'today':''} ${hang?'hang':ev?'ev':it.blk.length?'blk':''} ${it.chill.length?'chill':''} ${k===ui.hl?'hl':''}" data-a="day" data-d="${k}">${(it.work.length||it.notes.length)?`<span class="dashes">${it.work.length?'<span class="dash" style="background:#5b7fa6"></span>':''}${it.notes.length?'<span class="dash" style="background:#d99a1f"></span>':''}</span>`:''}<b>${dt.getDate()}</b><div class="dots">${dots.map(c=>`<span class="dot" style="background:${c}"></span>`).join('')}</div></div>`;
+    // Plans get a dot, work gets a square, someone busy gets an x
+    const xs=[];
+    if(it.bl.length)xs.push('#9a8f84');
+    cells+=`<div class="cell ${dt.getMonth()!==mo?'out':''} ${k===today()?'today':''} ${hang?'hang':ev?'ev':it.blk.length?'blk':''} ${it.chill.length?'chill':''} ${k===ui.hl?'hl':''}" data-a="day" data-d="${k}">${it.notes.length?'<span class="dashes"><span class="dash" style="background:#d99a1f"></span></span>':''}<b>${dt.getDate()}</b><div class="dots">${dots.map(c=>`<span class="dot" style="background:${c}"></span>`).join('')}${it.work.length?'<span class="sq"></span>':''}${xs.map(c=>`<span class="xm" style="color:${c}"></span>`).join('')}</div></div>`;
   }
-  const stds=[...S.std].sort((a,b)=>a.date.localeCompare(b.date)).map(s=>{
-    const r=s.rsvp||{};
-    const mine=r[S.me];
-    const cnt=v=>S.members.filter(x=>r[x.id]===v).map(x=>esc(x.name));
-    return `<div class="card"><div class="row sp"><div><h3>${esc(s.title)}</h3><div class="sub">${fmt(s.date,{weekday:'short',month:'short',day:'numeric',year:'numeric'})}${s.note?' · '+esc(s.note):''}</div></div><button class="sm ghost danger" data-a="delstd" data-id="${s.id}">✕</button></div>
-      <div class="row rs" style="margin-top:10px">${[['yes','✅ In'],['maybe','🤔 Maybe'],['no','❌ Out']].map(x=>`<button class="sm ${mine===x[0]?'on':''}" data-a="rsvp" data-id="${s.id}" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
-      <div class="sub" style="margin-top:8px">In: ${cnt('yes').join(', ')||'none yet'} · Maybe: ${cnt('maybe').join(', ')||'none'} · Out: ${cnt('no').join(', ')||'none'}</div></div>`}).join('');
   const blks=S.events.filter(e=>e.block&&(e.end||e.start)>=today()).sort((a,b)=>a.start.localeCompare(b.start)).map(blkCard).join('');
   return `<div class="row sp"><h1>Calendar</h1><button class="sm" data-a="ics">⬇ Export .ics</button></div>
   <div class="row sp" style="margin:8px 0"><button class="sm" data-a="mprev">‹</button><b>${m.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><button class="sm" data-a="mnext">›</button></div>
   <div class="cal">${['S','M','T','W','T','F','S'].map(d=>`<div class="h">${d}</div>`).join('')}${cells}</div>
   <div class="row" style="margin-top:8px"><button class="sm ${ui.showWork?'rxb on':''}" data-a="togglework">💼 Work schedules: ${ui.showWork?'on':'off'}</button></div>
-  <div class="legend"><span><i style="background:var(--acc)"></i>Hangout</span><span><i style="background:var(--acc2)"></i>Trip / event</span><span><i style="background:var(--acc3)"></i>Save the date</span><span><i style="background:#9a8f84"></i>Someone's busy</span><span><i style="width:14px;height:3px;border-radius:2px;background:#d99a1f;vertical-align:middle"></i>Note</span><span><i style="width:14px;height:3px;border-radius:2px;background:#5b7fa6;vertical-align:middle"></i>Work</span><span><i style="width:12px;height:12px;border-radius:4px;border:2px dashed #c2417a;vertical-align:middle"></i>Chill request</span><span><i style="width:12px;height:12px;border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(154,143,132,.6) 3px 6px);vertical-align:middle"></i>Group blackout</span></div>
-  <div class="row wrap"><button class="pri" data-a="newbusy" data-d="${today()}">+ I'm busy</button><button data-a="newev" data-d="${today()}">+ Trip / event</button><button data-a="newstd" data-d="${today()}">+ Save the date</button><button data-a="newnote" data-d="${today()}">+ Note</button><button data-a="newblk" data-d="${today()}">+ Group blackout</button></div>
+  <div class="legend"><span><i style="background:var(--acc)"></i>Hangout</span><span><i style="background:var(--acc2)"></i>Event</span><span><span class="xm" style="color:#9a8f84;margin-right:4px"></span>Someone's busy</span><span><span class="sq" style="margin-right:4px"></span>Work</span><span><i style="width:12px;height:12px;border-radius:4px;border:2px dashed #c2417a;vertical-align:middle"></i>Chill request</span><span><i style="width:12px;height:12px;border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(154,143,132,.6) 3px 6px);vertical-align:middle"></i>Blackout</span><span><i style="width:14px;height:3px;border-radius:2px;background:#d99a1f;vertical-align:middle"></i>Note</span></div>
+  <div class="row wrap"><button class="pri" data-a="newbusy" data-d="${today()}">+ I'm busy</button><button data-a="newev" data-d="${today()}">+ Event</button><button data-a="newnote" data-d="${today()}">+ Note</button><button data-a="newblk" data-d="${today()}">+ Blackout</button></div>
   <div class="row sp"><h2>🛋️ Chill requests</h2><button class="sm pri" data-a="newchill">+ Request</button></div>${openChill().map(c=>chillCard(c)).join('')||'<div class="card empty">No chill requests right now.</div>'}
-  <h2>Save the dates</h2>${stds||'<div class="card empty">Nothing yet. Float a date and see who is in.</div>'}
-  <div class="row sp"><h2>🚫 Group blackouts</h2><button class="sm" data-a="newblk" data-d="${today()}">+ Add</button></div>${blks||'<div class="card empty">No blackouts. Add holidays or other days the group won\'t be together, and hangouts will move around them.</div>'}
+  <div class="row sp"><h2>🚫 Blackouts</h2><button class="sm" data-a="newblk" data-d="${today()}">+ Add</button></div>${blks||'<div class="card empty">No blackouts. Add holidays or other days the group won\'t be together, and hangouts will move around them.</div>'}
   <div class="banner">Export .ics gives you a file to add these dates to your own calendar. It's a snapshot, so export again after plans change.</div>`;
 }
 
@@ -616,7 +612,7 @@ function rideRow(r){
 }
 function ridesCard(date){
   const list=S.rides.filter(r=>r.date===date&&!r.for&&mem(r.by));
-  // Rides for trips, events, save-the-dates and chill requests coming up
+  // Rides for trips, events and chill requests coming up
   const other=S.rides.filter(r=>r.for&&r.date>=today()&&mem(r.by)).sort((a,b)=>a.date.localeCompare(b.date));
   return `<div class="row sp"><h2>🚗 Rides · ${fmt(date)}</h2><button class="sm pri" data-a="newride" data-d="${date}" data-f="">+ Request</button></div>
   ${list.length?`<div class="card list">${list.map(rideRow).join('')}</div>`:'<div class="card empty">No ride requests yet. Need one? Ask early so someone can plan.</div>'}
@@ -628,7 +624,6 @@ function rideTargets(date){
   const it=itemsOn(date),t=[];
   if(it.hang)t.push(['','🎉 The hangout']);
   it.ev.forEach(e=>t.push([e.title,'🧳 '+e.title]));
-  it.std.forEach(s=>t.push([s.title,'📌 '+s.title]));
   it.chill.forEach(c=>{const a=chillAct(c);t.push([nm(c.by)+"'s chill ("+a[2]+')','🛋️ '+nm(c.by)+"'s chill: "+a[2]])});
   t.push(['Something else','✏️ Something else (say where below)']);
   return t;
@@ -761,14 +756,13 @@ function daySheet(date){
   if(it.done){any=true;h+=`<div class="card">✅ <b>Hangout logged</b><div class="sub">${it.done.host==='none'?'Group outing, no host':esc(nm(it.done.host))+' hosted'}</div></div>`}
   it.ev.forEach(e=>{any=true;h+=`<div class="card row sp"><div>🧳 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''}${e.resets?' · resets hangouts':''}</div></div><button class="sm ghost danger" data-a="delev" data-id="${e.id}">✕</button></div>`});
   it.blk.forEach(e=>{any=true;h+=blkCard(e)});
-  it.std.forEach(s=>{any=true;h+=`<div class="card">📌 <b>${esc(s.title)}</b></div>`});
   it.chill.forEach(c=>{any=true;h+=chillCard(c,true)});
   if(it.rides.length){any=true;h+=`<div class="card list"><b>🚗 Rides</b>${it.rides.map(rideRow).join('')}</div>`}
   if(it.notes.length){any=true;h+=`<div class="card"><b>📝 Notes</b>${it.notes.map(n=>`<div class="row sp" style="margin-top:10px;align-items:flex-start"><div class="row" style="align-items:flex-start">${av(n.by)}<div><b>${esc(nm(n.by))}</b><div class="ptxt" style="margin-top:2px;font-size:15px">${esc(n.text)}</div></div></div>${n.by===S.me?`<button class="sm ghost danger" data-a="delnote" data-id="${n.id}">✕</button>`:''}</div>`).join('')}</div>`}
   if(it.bl.length){any=true;h+=`<div class="card"><b>Busy</b>${it.bl.map(b=>`<div class="row sp" style="margin-top:8px"><div class="row">${av(b.who)}<span>${esc(nm(b.who))}${b.note?' · '+esc(b.note):''}</span></div><button class="sm ghost danger" data-a="delbusy" data-id="${b.id}">✕</button></div>`).join('')}</div>`}
   if(it.work.length){any=true;h+=`<div class="card"><b>💼 Work</b>${it.work.map(w=>`<div class="row" style="margin-top:10px">${av(w.by)}<div><b>${esc(nm(w.by))}</b><div class="sub">${fmtTime(w.start)} to ${fmtTime(w.end)}</div></div></div>`).join('')}</div>`}
   if(!any)h+=`<div class="empty">Nothing on this day.</div>`;
-  h+=`<div class="row wrap"><button class="pri" data-a="newbusy" data-d="${date}">+ Busy</button><button data-a="newnote" data-d="${date}">+ Note</button><button data-a="newchill" data-d="${date}">+ Chill</button><button data-a="newev" data-d="${date}">+ Trip / event</button><button data-a="newstd" data-d="${date}">+ Save the date</button><button data-a="newride" data-d="${date}">+ Ride</button><button data-a="newblk" data-d="${date}">+ Group blackout</button></div>`;
+  h+=`<div class="row wrap"><button class="pri" data-a="newbusy" data-d="${date}">+ Busy</button><button data-a="newnote" data-d="${date}">+ Note</button><button data-a="newchill" data-d="${date}">+ Chill</button><button data-a="newev" data-d="${date}">+ Event</button><button data-a="newride" data-d="${date}">+ Ride</button><button data-a="newblk" data-d="${date}">+ Blackout</button></div>`;
   sheet(h);
 }
 function busySheet(date){
@@ -780,7 +774,7 @@ function busySheet(date){
   <div class="row" style="margin-top:18px"><button class="pri" data-a="savebusy">Save</button><button data-a="close">Cancel</button></div>`);
 }
 function evSheet(date){
-  sheet(`<h2 style="margin-top:0">Trip or event</h2>
+  sheet(`<h2 style="margin-top:0">Event</h2>
   <label>Title</label><input id="eTitle" placeholder="Austin City Limits, beach weekend...">
   <label>Starts</label><input type="date" id="eStart" value="${date}">
   <label>Ends (optional)</label><input type="date" id="eEnd">
@@ -803,23 +797,13 @@ function moveHang(from,to){
   delete S.over[from];
   S.rides.forEach(r=>{if(r.date===from&&!r.for)r.date=to});
 }
-const blkCard=e=>`<div class="card row sp"><div>🚫 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''} · group blackout, no hangout</div></div><button class="sm ghost danger" data-a="delblk" data-id="${e.id}">✕</button></div>`;
+const blkCard=e=>`<div class="card row sp"><div>🚫 <b>${esc(e.title)}</b><div class="sub">${fmt(e.start)}${e.end&&e.end!==e.start?' to '+fmt(e.end):''} · blackout, no hangout</div></div><button class="sm ghost danger" data-a="delblk" data-id="${e.id}">✕</button></div>`;
 function blkSheet(date){
-  sheet(`<h2 style="margin-top:0">Group blackout</h2><div class="sub">For holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.</div>
+  sheet(`<h2 style="margin-top:0">Blackout</h2><div class="sub">For holidays and other days the group won't be together. A hangout that lands on one moves to the next regular day after it.</div>
   <label>What is it</label><input id="kTitle" maxlength="60" placeholder="Thanksgiving, Christmas, New Year's...">
   <label>From</label><input type="date" id="kFrom" value="${date}">
   <label>Through (optional)</label><input type="date" id="kTo">
   <div class="row" style="margin-top:18px"><button class="pri" data-a="saveblk">Save</button><button data-a="close">Cancel</button></div>`);
-}
-const stdDateRow=v=>`<div class="row sdrow" style="margin-top:6px"><input type="date" class="sDate" value="${v||''}" style="flex:1"><button class="sm ghost danger" data-a="rmsdate">✕</button></div>`;
-function stdSheet(date){
-  sheet(`<h2 style="margin-top:0">Save the date</h2>
-  <label>What is it</label><input id="sTitle" placeholder="Friendsgiving, birthday dinner...">
-  <label>Date(s)</label><div class="sub">Not sure which day? Add a few options and see which one gets the most RSVPs.</div>
-  <div id="sDates">${stdDateRow(date)}</div>
-  <button class="sm" style="margin-top:8px" data-a="addsdate">+ Another date</button>
-  <label>Note (optional)</label><input id="sNote">
-  <div class="row" style="margin-top:18px"><button class="pri" data-a="savestd">Save</button><button data-a="close">Cancel</button></div>`);
 }
 function doneSheet(date){
   const n=withHosts(upcoming(1))[0],a=actInfo(n.o);
@@ -856,11 +840,6 @@ function exportIcs(){
     if(c.time){const [h2,m2]=c.time.split(':');const eh=String((+h2+3)%24).padStart(2,'0');
       L.push(...base,'DTSTART:'+ds+'T'+h2+m2+'00','DTEND:'+ds+'T'+eh+m2+'00','SUMMARY:'+esc2('Chill: '+a[2]),'END:VEVENT')}
     else L.push(...base,'DTSTART;VALUE=DATE:'+ds,'DTEND;VALUE=DATE:'+z(iso(addDays(parse(c.date),1))),'SUMMARY:'+esc2('Chill: '+a[2]),'END:VEVENT');
-  });
-  S.std.forEach(s=>{
-    L.push('BEGIN:VEVENT','UID:std-'+s.id+'@crewnights','DTSTAMP:'+z(today())+'T000000Z',
-      'DTSTART;VALUE=DATE:'+z(s.date),'DTEND;VALUE=DATE:'+z(iso(addDays(parse(s.date),1))),
-      'SUMMARY:'+esc2('Save the date: '+s.title),'END:VEVENT');
   });
   L.push('END:VCALENDAR');
   const b=new Blob([L.join('\r\n')],{type:'text/calendar'});
@@ -915,14 +894,6 @@ function act(a,d){
       let e=$('#eEnd').value||s;if(e<s)e=s;
       S.events.push({id:uid(),title:t,start:s,end:e,resets:$('#eReset').checked});closeSheet();break}
     case 'delev':S.events=S.events.filter(e=>e.id!==d.id);closeSheet();break;
-    case 'newstd':return stdSheet(d.d);
-    case 'addsdate':{const l=[...document.querySelectorAll('.sDate')].pop();
-      $('#sDates').insertAdjacentHTML('beforeend',stdDateRow(l&&l.value?iso(addDays(parse(l.value),1)):''));return}
-    case 'savestd':{
-      const t=$('#sTitle').value.trim(),note=$('#sNote').value.trim();
-      const dates=[...new Set([...document.querySelectorAll('.sDate')].map(i=>i.value).filter(Boolean))].sort();
-      if(!t||!dates.length)return;
-      dates.forEach(dt=>S.std.push({id:uid(),title:t,date:dt,note,rsvp:{}}));closeSheet();break}
     case 'newblk':return blkSheet(d.d);
     case 'saveblk':{
       const t=$('#kTitle').value.trim(),s=$('#kFrom').value;if(!t||!s)return;
@@ -930,8 +901,6 @@ function act(a,d){
       S.events.push({id:uid(),title:t,start:s,end:e,block:true});ui.sel=0;closeSheet();break}
     case 'delblk':{const e=S.events.find(x=>x.id===d.id);if(!e||!confirm('Remove the "'+e.title+'" blackout for everyone?'))return;
       S.events=S.events.filter(x=>x.id!==d.id);ui.sel=0;closeSheet();break}
-    case 'delstd':S.std=S.std.filter(s=>s.id!==d.id);break;
-    case 'rsvp':{const s=S.std.find(x=>x.id===d.id);s.rsvp=s.rsvp||{};s.rsvp[S.me]=d.v;break}
     case 'newpost':return postSheet();
     case 'savepost':{const v=$('#pText').value.trim();if(!v)return;S.board.unshift({id:uid(),by:S.me,text:v,pinned:$('#pPin').checked,ts:Date.now(),rx:{}});closeSheet();break}
     case 'pinpost':{const p=S.board.find(x=>x.id===d.id);p.pinned=!p.pinned;break}
@@ -1023,7 +992,6 @@ function chg(k,d,v){
 }
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t)return;
   if(t.dataset.a==='rmfact'){t.closest('.frow').remove();return}
-  if(t.dataset.a==='rmsdate'){if(document.querySelectorAll('.sdrow').length>1)t.closest('.sdrow').remove();return}
   if(t.dataset.a==='rmwork'){t.closest('.wrow').remove();return}
   if(t.dataset.a==='addwork'){$('#workRows').insertAdjacentHTML('beforeend',workRow({days:[1,2,3,4,5],start:'09:00',end:'17:00'}));return}
   if(t.dataset.a==='addfact'){$('#factRows').insertAdjacentHTML('beforeend',factRow('',''));return}
